@@ -16,28 +16,28 @@ Modern traffic command centers operate reactively. When a vehicle breakdown, wat
 
 ---
 
-## ML Architecture — V7
+## ML Architecture
 
 The entire pipeline is contained in `final-ml-model.ipynb` and exported as `citysync_v7.pkl`. Three layers run sequentially; each layer's output feeds the next.
 
 ```
 Incident Input
 (type · corridor · location · time · closure flag · weather)
-        │
-        ▼
+                        │
+                        ▼
 ┌──────────────────────────────────────────────────────┐
 │  Layer 1 — LightGBM Quantile Regression              │
-│  Quantiles: q=0.10 / q=0.50 / q=0.90                │
+│  Quantiles: q=0.10 / q=0.50 / q=0.90                 │
 │  Loss: Pinball loss per quantile                     │
 │  Tuning: Optuna (60 trials, 4-fold TimeSeriesCV)     │
-│  Output: P10 – P50 – P90 clearance band (hours)     │
-└─────────────────────┬────────────────────────────────┘
-                      │
-                      ▼
+│  Output: P10 – P50 – P90 clearance band (hours)      │
+└──────────────────────────────────────────────────────┘
+                        │
+                        ▼
 ┌──────────────────────────────────────────────────────┐
 │  Layer 2 — Soft Severity Classifier                  │
 │  Band-aware, asymmetric, 3-tier confidence           │
-│  Buckets: Short (0–1h) · Medium (1–6h) ·            │
+│  Buckets: Short (0–1h) · Medium (1–6h) ·             │
 │           Long (6–24h) · Extended (24–72h)           │
 │                                                      │
 │  Confidence logic (p50-upward focus):                │
@@ -46,19 +46,19 @@ Incident Input
 │  Low      : p50 and p90 in different buckets         │
 │                                                      │
 │  Output: Severity label + confidence tier + span     │
-└─────────────────────┬────────────────────────────────┘
-                      │
-                      ▼
+└──────────────────────────────────────────────────────┘
+                        │
+                        ▼
 ┌──────────────────────────────────────────────────────┐
 │  Layer 3 — Composite Urgency Score (0–100)           │
 │  Inputs: severity weight · peak multiplier ·         │
 │          cascade risk · corridor load index          │
-│  Tiers: CRITICAL (≥80) · HIGH (≥55) ·               │
-│         MODERATE (≥30) · LOW (<30)                  │
-│  Output: Single ranked 0–100 score + tier label     │
+│  Tiers: CRITICAL (≥80) · HIGH (≥55) ·                │
+│         MODERATE (≥30) · LOW (<30)                   │
+│  Output: Single ranked 0–100 score + tier label      │
 └──────────────────────────────────────────────────────┘
-        │
-        ▼
+                        │
+                        ▼
 Cascade Propagation Model → Operator Playbook → Dashboard
 ```
 
@@ -125,9 +125,8 @@ TRAIN_RATIO     = 0.80  # chronological split
 
 ```
 citysync/
-├── final-ml-model.ipynb     # Complete ML pipeline (V7) — single notebook
-├── citysync_v7.pkl          # Serialized model bundle
-│                            # (3 quantile models + K-Means + 5 risk maps)
+├── final-ml-model.ipynb     # Complete ML pipeline — single notebook
+├── citysync_v7.pkl          # Serialized model bundle (3 quantile models + K-Means + 5 risk maps)
 ├── app.py                   # Flask backend
 ├── index.html               # Landing page + overview
 ├── index.css                # Styles
@@ -171,7 +170,7 @@ python app.py
 
 ## Live Demo
 
-🔗 **[Launch CitySync Dashboard →](https://your-deployed-link.com)**
+🔗 **[Launch CitySync Dashboard →](citysync-command.onrender.com)**
 
 Recommended walkthrough:
 1. Land on the **Overview** page
@@ -187,14 +186,11 @@ Recommended walkthrough:
 
 | Section | Content |
 |---|---|
-| 1 — Incident Intelligence | Event type, corridor, location, priority, timestamp |
-| 2 — Forecast Engine | P10/P50/P90 window, severity class, urgency score, confidence drivers |
-| 3 — Decision Drivers | Primary contributors influencing the forecast |
-| 4 — Cascade Intelligence | Propagation graph, spread window, vulnerable junctions, cascade risk score |
-| 5 — Operational Risk Radar | Corridor / cascade / delay / diversion risk gauges |
-| 7 — Recommendation Evidence | Historical matches, P50 benchmark, risk profile, affected nodes |
-| 8 — Continuous Learning | Preparedness recommendations, resilience opportunities, historical context |
+| Incident Intelligence | Event type, corridor, location, priority, timestamp |
+| Forecast Engine | P10/P50/P90 window, severity class, urgency score, confidence drivers |
+| Decision Drivers | Primary contributors influencing the forecast |
+| Cascade Intelligence | Propagation graph, spread window, vulnerable junctions, cascade risk score |
+| Operational Risk Radar | Corridor / cascade / delay / diversion risk gauges |
+| Recommendation Evidence | Historical matches, P50 benchmark, risk profile, affected nodes |
+| Continuous Learning | Preparedness recommendations, resilience opportunities, historical context |
 
----
-
-**Flipkart Gridlock 2.0 — Round 2 Prototype Submission**
