@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CitySync Command | AI-Powered Traffic Operations Intelligence</title>
+    
+    <!-- Meta Tags for SEO -->
+    <meta name="description" content="CitySync Command helps metropolitan traffic operations centers forecast cascading disruption impact, map bottlenecks, and deploy automated response playbooks before congestion spreads.">
+    <meta name="keywords" content="traffic intelligence, urban mobility, predictive traffic control, smart city command, operations playbook, cascading congestion">
+    
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="index.css">
+    <style>
+        /* ─── STATS GRID (Anatomy Section) ─── */
+        .stats-grid-row { 
+            display: grid; 
+            grid-template-columns: repeat(4, 1fr); 
+            gap: 1.5rem; 
+        }
+        @media (max-width: 968px) { .stats-grid-row { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 576px) { .stats-grid-row { grid-template-columns: 1fr; } }
+
+        .stat-card { 
+            background: rgba(255, 255, 255, 0.02); 
+            border: 1px solid rgba(255, 255, 255, 0.08); 
+            padding: 1.75rem 1.5rem; 
+            border-radius: 16px; 
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            text-align: center;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+            background: rgba(255, 255, 255, 0.04);
+            border-color: rgba(99, 102, 241, 0.25);
+            box-shadow: 0 12px 30px rgba(99, 102, 241, 0.06), inset 0 1px 0 rgba(255,255,255,0.08);
+        }
+        .stat-num { font-family: 'Space Grotesk', sans-serif; font-size: 2.5rem; font-weight: 700; color: white; line-height: 1; margin-bottom: 0.5rem; }
+        .stat-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; font-weight: 600; }
+        .stat-desc { font-size: 0.85rem; color: var(--text-secondary); opacity: 0.75; line-height: 1.4; margin-top: 0.75rem; }
+    </style>
+</head>
+<body>
+
+    <!-- Ambient Gradients in Background -->
+    <div class="bg-ambient-glows">
+        <div class="glow-1"></div>
+        <div class="glow-2"></div>
+        <div class="glow-3"></div>
+    </div>
+
+    <!-- Floating Navigation Pill -->
+    <div class="nav-wrapper">
+        <nav class="floating-nav">
+            <a href="#" class="nav-logo" id="nav-logo-link">
+                <span>CITYSYNC <span style="font-weight: 300; opacity: 0.8;">COMMAND</span></span>
+            </a>
+            <div class="nav-links">
+                <a href="#overview" class="nav-link active" id="lnk-overview">Overview</a>
+                <a href="#intelligence" class="nav-link" id="lnk-architecture">Architecture</a>
+                <a href="#capabilities" class="nav-link" id="lnk-capabilities">Capabilities</a>
+            </div>
+            <script>
+                // Prevent flash of active overview tab if URL has hash on load
+                (function() {
+                    var hash = window.location.hash;
+                    if (hash) {
+                        var lnkOverview = document.getElementById('lnk-overview');
+                        if (lnkOverview) lnkOverview.classList.remove('active');
+                        var sectionToLinkMap = {
+                            'overview': 'lnk-overview',
+                            'problem': 'lnk-overview',
+                            'intelligence': 'lnk-architecture',
+                            'architecture': 'lnk-architecture',
+                            'capabilities': 'lnk-capabilities',
+                            'trust': 'lnk-capabilities',
+                            'learning': 'lnk-capabilities'
+                        };
+                        var targetId = hash.substring(1);
+                        var targetLinkId = sectionToLinkMap[targetId];
+                        if (targetLinkId) {
+                            var targetLink = document.getElementById(targetLinkId);
+                            if (targetLink) targetLink.classList.add('active');
+                        }
+                    }
+                })();
+            </script>
+            <a href="simulation.html" class="nav-btn" id="nav-launch-btn">Dashboard</a>
+        </nav>
+    </div>
+
+    <!-- Hero Section -->
+    <section class="hero-section" id="overview">
+        <span class="hero-label">Next-Generation Traffic Intelligence</span>
+        <h1 class="hero-headline text-gradient-primary">Predict the cascade.<br>Deploy the playbook.</h1>
+        <p class="hero-supporting">
+            Traffic incidents do not create congestion. <span>Response delays do.</span>
+            CitySync helps command centers forecast disruption impact, identify cascading bottlenecks, and deploy the right response before the network breaks down.
+        </p>
+        <div class="hero-ctas">
+            <a href="simulation.html" class="btn-primary" id="hero-cta-launch">
+                Launch Live Dashboard
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+            </a>
+            <a href="#problem" class="btn-secondary" id="hero-cta-explore">Explore Capabilities</a>
+        </div>
+        
+        <!-- Ripple Visual Container -->
+        <div class="ripple-visualization-container">
+            <canvas id="rippleCanvas" class="ripple-canvas"></canvas>
+        </div>
+    </section>
+
+    <main class="container">
+        
+        <!-- Section 1: Problem -->
+        <section class="story-section reveal" id="problem">
+            <div style="width: 100%;">
+                <div style="text-align: center; max-width: 800px; margin: 0 auto 4rem auto;">
+                    <div class="section-tag" style="justify-content: center; display: flex;">The Problem</div>
+                    <h2 class="section-title text-gradient-primary">The Anatomy of a Gridlock</h2>
+                    <p class="section-desc">
+                        Modern cities operate on legacy traffic management protocols. When an anomaly occurs, such as a heavy vehicle breakdown, localized waterlogging, or a sudden protest, control rooms rely on static cameras and human intuition.
+                    </p>
+                    <p class="section-desc">
+                        The result is a delayed operational response that allows a localized incident to trigger a city-wide arterial cascade within minutes. <span style="color: white; font-weight: 600;">94% of these severe congestion events are entirely unplanned.</span>
+                    </p>
+                </div>
+
+                <div class="stats-grid-row">
+                    <div class="stat-card">
+                        <div class="stat-num" data-target="60" data-suffix="%">0%</div>
+                        <div class="stat-label">Triggered by Breakdowns</div>
+                        <p class="stat-desc">Vehicle breakdowns on major flyovers trigger the longest queue formations.</p>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-num" data-target="22" data-suffix="">0</div>
+                        <div class="stat-label">High-Risk Corridors</div>
+                        <p class="stat-desc">Arterial links across the city highly prone to cascading signal backpressure.</p>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-num" data-target="72" data-suffix="h">0h</div>
+                        <div class="stat-label">Max Clearance Delay</div>
+                        <p class="stat-desc">Peak structural gridlock duration logged during systemic drainage failure incidents.</p>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-num" data-target="2.9" data-suffix="k+" data-step="0.1">0.0k+</div>
+                        <div class="stat-label">Telemetry Logs Parsed</div>
+                        <p class="stat-desc">Geospatial transit feeds ingested every second to map speed variance trends.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 2: Intelligence -->
+        <section class="story-section reveal" id="intelligence">
+            <div class="section-grid reverse">
+                <div class="text-block">
+                    <div class="section-tag">Intelligence</div>
+                    <h2 class="section-title text-gradient-primary">How CitySync Thinks</h2>
+                    <p class="section-desc">
+                        CitySync parses real-time cellular telemetry, transit coordinates, loop detectors, and weather forecasts. It projects them onto a spatial-temporal graph neural network (GNN).
+                    </p>
+                    <div class="section-list">
+                        <div class="section-list-item">
+                            <div class="list-icon">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                            </div>
+                            <div class="list-text">
+                                <h4>Proactive Prediction Window</h4>
+                                <p>Simulates urban traffic flows up to 90 minutes into the future to identify invisible bottlenecks before they form.</p>
+                            </div>
+                        </div>
+                        <div class="section-list-item">
+                            <div class="list-icon">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+                            </div>
+                            <div class="list-text">
+                                <h4>Graph Topology Modeling</h4>
+                                <p>Maps relationships between intersections to trace congestion leakages and overflow paths.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="visual-block">
+                    <div class="visual-glow-background" style="background: radial-gradient(circle, rgba(139, 92, 246, 0.08) 0%, transparent 70%);"></div>
+                    <div class="visual-canvas-container">
+                        <canvas id="neuralCanvas" style="width: 100%; height: 100%; display: block;"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 3: Pipeline -->
+        <section class="story-section reveal" id="architecture">
+            <div class="section-grid">
+                <div class="text-block">
+                    <div class="section-tag">Operations Pipeline</div>
+                    <h2 class="section-title text-gradient-primary">Telemetry to Action</h2>
+                    <p class="section-desc">
+                        Urban intelligence is only valuable if it drives rapid, coordinated operations. CitySync compresses the response loop into four distinct pipeline stages.
+                    </p>
+                    <div class="section-list">
+                        <div class="section-list-item">
+                            <div class="list-icon">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                            </div>
+                            <div class="list-text">
+                                <h4>Continuous Ingestion</h4>
+                                <p>Pulls millions of geospatial GPS telemetry updates per second, aggregating lane velocity feeds.</p>
+                            </div>
+                        </div>
+                        <div class="section-list-item">
+                            <div class="list-icon">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>
+                            </div>
+                            <div class="list-text">
+                                <h4>Cascade Simulation</h4>
+                                <p>Models pressure buildup on adjacent roads. Predicts exactly when gridlock will cross critical thresholds.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="visual-block">
+                    <div class="visual-glow-background"></div>
+                    <div class="visual-canvas-container">
+                        <canvas id="pipelineCanvas" style="width: 100%; height: 100%; display: block;"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 4: Action -->
+        <section class="story-section reveal" id="capabilities">
+            <div class="section-grid reverse">
+                <div class="text-block">
+                    <div class="section-tag">Actionable Playbooks</div>
+                    <h2 class="section-title text-gradient-primary">Orchestrate the Response</h2>
+                    <p class="section-desc">
+                        Instead of reading dashboard maps and guessing, operators receive clear, ranked response plans. 
+                    </p>
+                    <p class="section-desc" style="opacity: 0.85;">
+                        Whether shifting dynamic signals, opening emergency shoulders, or broadcasting navigation diversions, CitySync provides a unified control console.
+                    </p>
+                </div>
+                <div class="visual-block">
+                    <div class="visual-glow-background" style="background: radial-gradient(circle, rgba(239, 68, 68, 0.05) 0%, transparent 70%);"></div>
+                    <div class="incident-showcase-wrapper">
+                        <!-- Premium Operational Card -->
+                        <div class="glass-panel incident-card">
+                            <div class="card-glowing-edge"></div>
+                            
+                            <div class="card-header">
+                                <div class="card-title-group">
+                                    <h3>Vehicle Breakdown</h3>
+                                    <p>Tumkur Road • Corridor Segment 4B</p>
+                                </div>
+                                <div class="severity-indicator">
+                                    <div class="indicator-pulse"></div>
+                                    <span>SHORT → MEDIUM</span>
+                                </div>
+                            </div>
+                            
+                            <div class="metrics-grid">
+                                <div class="metric-item">
+                                    <span class="metric-label">EXPECTED DURATION</span>
+                                    <span class="metric-val">0.7 <span>hrs</span></span>
+                                </div>
+                                <div class="metric-item">
+                                    <span class="metric-label">FORECAST RANGE</span>
+                                    <span class="metric-val">0.2 - 1.7 <span>hrs</span></span>
+                                </div>
+                                <div class="metric-item urgency-container">
+                                    <div class="urgency-header">
+                                        <span class="metric-label">URGENCY SCORE</span>
+                                        <span class="metric-val" style="font-size: 1rem; color: var(--accent-amber);">41 / 100</span>
+                                    </div>
+                                    <div class="urgency-bar-track">
+                                        <div class="urgency-bar-fill"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="playbook-container">
+                                <div class="playbook-header">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                                    <span>Recommended Action</span>
+                                </div>
+                                <ul class="playbook-actions">
+                                    <li class="playbook-action-item completed">
+                                        <div class="action-checkbox">✓</div>
+                                        <span>Deploy 2 traffic officers to bottleneck site</span>
+                                    </li>
+                                    <li class="playbook-action-item completed">
+                                        <div class="action-checkbox">✓</div>
+                                        <span>Monitor corridor flow via secondary feeds</span>
+                                    </li>
+                                    <li class="playbook-action-item">
+                                        <div class="action-checkbox"></div>
+                                        <span>Divert arterials: No diversion required</span>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 5: Trust -->
+        <section class="story-section reveal" id="trust">
+            <div class="section-grid">
+                <div class="text-block">
+                    <div class="section-tag">Trust & Bounding</div>
+                    <h2 class="section-title text-gradient-primary">Failsafe Predictions</h2>
+                    <p class="section-desc">
+                        A system that is wrong twice is never used again. CitySync quantifies its own prediction uncertainties. 
+                    </p>
+                    <p class="section-desc" style="opacity: 0.85;">
+                        Instead of predicting a single timeline, we calculate confidence bounds. Operators see best-case, worst-case, and expected outcomes, ensuring complete operational safety.
+                    </p>
+                </div>
+                <div class="visual-block">
+                    <div class="visual-glow-background"></div>
+                    <div class="visual-canvas-container">
+                        <canvas id="confidenceCanvas" style="width: 100%; height: 100%; display: block;"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 6: Learning -->
+        <section class="story-section reveal" id="learning">
+            <div class="section-grid reverse">
+                <div class="text-block">
+                    <div class="section-tag">Continuous Learning</div>
+                    <h2 class="section-title text-gradient-primary">Every Incident Makes Us Smarter</h2>
+                    <p class="section-desc">
+                        CitySync doesn't just evaluate traffic; it evaluates its own recommendations. By analyzing operator adjustments, officer arrival times, and road recovery curves, the platform refines its prediction weightings.
+                    </p>
+                    <p class="section-desc" style="opacity: 0.85;">
+                        The system acts as a digital twin, getting progressively more accurate for your city's specific topology every day.
+                    </p>
+                </div>
+                <div class="visual-block">
+                    <div class="visual-glow-background" style="background: radial-gradient(circle, rgba(59, 130, 246, 0.06) 0%, transparent 70%);"></div>
+                    <div class="visual-canvas-container">
+                        <canvas id="learningCanvas" style="width: 100%; height: 100%; display: block;"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Live Dashboard CTA Section -->
+        <section class="simulation-cta-section reveal">
+            <div class="cta-glow-bg"></div>
+            <div class="glass-panel cta-box">
+                <h2 class="text-gradient-primary">See the technology in action.</h2>
+                <p>Launch our live traffic control dashboard to stress-test corridors, trigger artificial incidents, and deploy AI playbooks.</p>
+                <a href="simulation.html" class="btn-primary" style="font-size: 1.1rem; padding: 1.2rem 2.8rem;" id="cta-box-launch">
+                    Launch Interactive Dashboard
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                </a>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Scripts -->
+    <script src="index.js"></script>
+</body>
+</html>

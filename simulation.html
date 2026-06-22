@@ -1,0 +1,1433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CitySync Command | Operations Dashboard</title>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Leaflet Map CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Main Style sheet -->
+    <link rel="stylesheet" href="index.css">
+    
+    <style>
+        /* ─── SIMULATOR SPECIFIC OVERRIDES & UTILITIES ─── */
+        /* Custom scrollbars matching the dark glassmorphism theme */
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+        }
+        
+        ::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        body {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            overflow-x: hidden;
+            background-color: var(--bg-base);
+            font-family: var(--font-sans);
+            padding-top: 6.5rem; /* Space for the floating nav bar */
+        }
+
+        /* Ambient Gradients in Background */
+        .bg-ambient-glows {
+            z-index: 0;
+        }
+
+        /* 2-Row Console Layout */
+        .console-grid {
+            display: grid;
+            grid-template-rows: calc(100vh - 8.5rem); /* Top row takes full remaining viewport height */
+            gap: 1.5rem;
+            padding: 0 2rem 2rem 2rem;
+            flex: 1;
+            overflow: hidden;
+            width: 100%;
+            z-index: 10;
+            transition: grid-template-rows 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .console-grid.show-playbook {
+            grid-template-rows: calc(100vh - 8.5rem) auto; /* Playbook generated below without shrinking top row */
+            overflow: visible;
+        }
+
+        .bottom-row-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 1.75rem;
+            width: 100%;
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .bottom-row-grid.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .bottom-row-grid .glass-panel-sim {
+            height: auto !important;
+            overflow: visible !important;
+        }
+
+        .bottom-row-grid .panel-content-sim {
+            overflow: visible !important;
+            height: auto !important;
+            flex: none !important;
+        }
+
+        /* Quantile Timeline styles */
+        .quantile-hero-container {
+            background: rgba(255, 255, 255, 0.015);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 1.5rem 1.75rem;
+            border-radius: 16px;
+            margin: 0.5rem 0;
+        }
+
+        .quantile-track-line {
+            position: absolute;
+            left: 5%;
+            right: 5%;
+            height: 3px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+        }
+
+        .quantile-active-segment {
+            position: absolute;
+            height: 3px;
+            background: linear-gradient(to right, var(--accent-indigo), var(--accent-red));
+            box-shadow: 0 0 10px rgba(99, 102, 241, 0.4);
+            border-radius: 2px;
+            transition: left 0.3s ease, width 0.3s ease;
+        }
+
+        .quantile-marker {
+            position: absolute;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: left 0.3s ease;
+        }
+
+        /* SVG Risk Radar Progress Rings */
+        .risk-radar-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .risk-radar-card {
+            background: rgba(255, 255, 255, 0.01);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            border-radius: 16px;
+            padding: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1.25rem;
+            transition: var(--transition-smooth);
+        }
+
+        .risk-radar-card:hover {
+            background: rgba(255, 255, 255, 0.02);
+            border-color: rgba(255, 255, 255, 0.08);
+            transform: translateY(-2px);
+        }
+
+        .progress-ring-container {
+            position: relative;
+            width: 70px;
+            height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .progress-ring-text {
+            position: absolute;
+            font-family: var(--font-mono);
+            font-size: 0.88rem;
+            font-weight: 700;
+            color: white;
+        }
+
+        .briefing-tag-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+        }
+
+        .briefing-tag-card {
+            background: rgba(255,255,255,0.015);
+            border: 1px solid rgba(255,255,255,0.05);
+            padding: 1rem 1.25rem;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+        }
+
+        /* Glass Panel Simulator Cards */
+        .glass-panel-sim {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            height: 100%;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+            transition: var(--transition-smooth);
+        }
+
+        .panel-header-sim {
+            padding: 1.1rem 1.5rem 0.85rem 1.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .panel-title-sim {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: -0.01em;
+        }
+
+        .panel-content-sim {
+            padding: 1.25rem 1.5rem 1.5rem 1.5rem;
+            overflow-y: auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 1.1rem;
+        }
+
+        /* Form Inputs */
+        .control-input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+
+        .control-input-group label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--accent-indigo);
+            font-weight: 700;
+            font-family: var(--font-mono);
+        }
+
+        .control-input-group select {
+            background: rgba(5, 7, 15, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: var(--text-primary);
+            padding: 0.75rem 1rem;
+            border-radius: 10px;
+            font-family: var(--font-sans);
+            font-size: 0.88rem;
+            outline: none;
+            cursor: pointer;
+            transition: var(--transition-fast);
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            background-size: 1rem;
+            padding-right: 2.5rem;
+        }
+
+        .control-input-group select:focus {
+            border-color: var(--accent-indigo);
+            background-color: rgba(5, 7, 15, 0.7);
+            box-shadow: 0 0 10px rgba(99, 102, 241, 0.15);
+        }
+
+        /* Time Slider Block */
+        .time-slider-container {
+            background: rgba(255, 255, 255, 0.015);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 0.9rem 1.1rem;
+        }
+
+        .time-slider-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+
+        .time-slider-val {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: var(--text-primary);
+            font-weight: 700;
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid rgba(99, 102, 241, 0.25);
+            padding: 0.15rem 0.45rem;
+            border-radius: 5px;
+        }
+
+        .time-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            cursor: pointer;
+            height: 6px;
+            background: linear-gradient(to right, 
+                #3b82f6 0%, 
+                #3b82f6 25%, 
+                #ef4444 35%, 
+                #10b981 45%, 
+                #10b981 65%, 
+                #ef4444 75%, 
+                #3b82f6 90%, 
+                #3b82f6 100%
+            );
+            border-radius: 4px;
+            outline: none;
+        }
+
+        .time-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #ffffff;
+            border: 2px solid var(--accent-indigo);
+            cursor: pointer;
+            box-shadow: 0 0 8px rgba(99, 102, 241, 0.4);
+            transition: transform 0.15s ease, background-color 0.15s ease;
+        }
+        .time-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.25);
+            background: var(--accent-indigo);
+        }
+        .time-slider::-moz-range-thumb {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ffffff;
+            border: 2px solid var(--accent-indigo);
+            cursor: pointer;
+            box-shadow: 0 0 8px rgba(99, 102, 241, 0.4);
+            transition: transform 0.15s ease, background-color 0.15s ease;
+        }
+        .time-slider::-moz-range-thumb:hover {
+            transform: scale(1.25);
+            background: var(--accent-indigo);
+        }
+
+        .time-slider-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+            font-family: var(--font-mono);
+        }
+
+        /* Status Badge */
+        .sim-status-badge {
+            font-size: 0.75rem;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            padding: 0.35rem 0.85rem;
+            border-radius: 100px;
+            background: rgba(239, 68, 68, 0.12);
+            color: var(--accent-red);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            text-transform: uppercase;
+            display: inline-block;
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.1);
+        }
+
+        .sim-status-badge.moderate {
+            background: rgba(245, 158, 11, 0.12);
+            color: var(--accent-amber);
+            border-color: rgba(245, 158, 11, 0.2);
+            box-shadow: 0 0 10px rgba(245, 158, 11, 0.1);
+        }
+
+        .sim-status-badge.nominal {
+            background: rgba(16, 185, 129, 0.12);
+            color: var(--accent-emerald);
+            border-color: rgba(16, 185, 129, 0.2);
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.1);
+        }
+
+        /* Map Segment */
+        .map-card-sim {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .map-header-sim {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.1rem 1.5rem 0.85rem 1.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            z-index: 10;
+        }
+
+        .map-badge-sim {
+            background: rgba(99, 102, 241, 0.12);
+            color: var(--accent-indigo);
+            font-size: 0.7rem;
+            font-family: var(--font-mono);
+            font-weight: 700;
+            padding: 0.2rem 0.6rem;
+            border-radius: 6px;
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            text-transform: uppercase;
+            display: none; /* Hidden by default; only shown when simulation runs */
+        }
+
+        .map-canvas-container-sim {
+            flex: 1;
+            position: relative;
+            background: rgba(5, 7, 15, 0.2);
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .map-canvas-sim {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* Right Playbook Area */
+        .playbook-card-sim {
+            width: 100%;
+            height: auto;
+            min-height: 100%;
+        }
+
+        .playbook-scroll-container {
+            display: flex;
+            align-items: stretch;
+            padding: 1.5rem 2rem;
+            overflow: visible;
+            flex: 1;
+            width: 100%;
+            height: auto;
+        }
+
+        /* Playbook Actions Cards */
+        .playbook-action-card {
+            background: rgba(255, 255, 255, 0.015);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 1.35rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.85rem;
+            height: auto;
+            min-height: 100%;
+            justify-content: flex-start;
+            transition: var(--transition-smooth);
+        }
+
+        .playbook-action-card:hover {
+            border-color: rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.03);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        }
+
+        .action-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .action-card-type {
+            font-size: 0.72rem;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            padding: 0.25rem 0.65rem;
+            border-radius: 6px;
+            text-transform: uppercase;
+            font-family: var(--font-mono);
+        }
+
+        .action-card-type.barricading { background: rgba(239, 68, 68, 0.1); color: var(--accent-red); border: 1px solid rgba(239, 68, 68, 0.18); }
+        .action-card-type.manpower { background: rgba(245, 158, 11, 0.1); color: var(--accent-amber); border: 1px solid rgba(245, 158, 11, 0.18); }
+        .action-card-type.diversion { background: rgba(16, 185, 129, 0.1); color: var(--accent-emerald); border: 1px solid rgba(16, 185, 129, 0.18); }
+        .action-card-type.timeline { background: rgba(59, 130, 246, 0.1); color: var(--accent-blue); border: 1px solid rgba(59, 130, 246, 0.18); }
+
+        .action-card-desc {
+            font-size: 0.88rem;
+            color: var(--text-secondary);
+            line-height: 1.55;
+        }
+
+        /* Screen Blocking Loading Overlay */
+        .sim-loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(5, 5, 8, 0.85);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            z-index: 1000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .sim-spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(99, 102, 241, 0.1);
+            border-top-color: var(--accent-indigo);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.2);
+        }
+
+        .sim-loading-text {
+            font-family: var(--font-mono);
+            color: var(--accent-indigo);
+            letter-spacing: 0.15em;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Responsive Columns Scaling */
+        @media (max-width: 1024px) {
+            .top-row-grid {
+                grid-template-columns: 1fr !important;
+                grid-template-rows: auto 320px;
+            }
+            .console-grid {
+                grid-template-rows: auto;
+                overflow: visible;
+                height: auto;
+            }
+            .console-grid.show-playbook {
+                grid-template-rows: auto auto;
+            }
+            .bottom-row-grid {
+                flex-direction: column !important;
+                gap: 1.5rem;
+            }
+            .briefing-tag-grid {
+                grid-template-columns: repeat(2, 1fr) !important;
+            }
+            .risk-radar-grid {
+                grid-template-columns: repeat(2, 1fr) !important;
+            }
+            .playbook-content-grid {
+                grid-template-columns: 1fr !important;
+                gap: 1rem;
+            }
+            .playbook-actions-row {
+                grid-template-columns: repeat(2, 1fr) !important;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .playbook-actions-row {
+                grid-template-columns: 1fr !important;
+            }
+            .console-grid {
+                padding: 0 1rem 1rem 1rem;
+            }
+        }
+
+        /* ─── LEAFLET GEOSPATIAL MAP OVERRIDES ─── */
+        #map {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            background: #0B1320;
+        }
+
+        .leaflet-control-attribution {
+            display: none !important;
+        }
+        
+        .leaflet-container {
+            background: #0B1320 !important;
+        }
+
+        /* glowing anomalies */
+        .glowing-anomaly {
+            border-radius: 50%;
+            pointer-events: none;
+            position: absolute;
+            transform: translate(-50%, -50%);
+        }
+
+        .pulsing-critical {
+            background: radial-gradient(circle, rgba(232, 93, 93, 0.85) 0%, rgba(255, 194, 0, 0.4) 40%, rgba(232, 93, 93, 0) 70%);
+            animation: pulseCritical 1.5s infinite alternate ease-in-out;
+            width: 160px;
+            height: 160px;
+        }
+
+        .pulsing-moderate {
+            background: radial-gradient(circle, rgba(255, 194, 0, 0.75) 0%, rgba(255, 194, 0, 0.3) 45%, rgba(255, 194, 0, 0) 70%);
+            animation: pulseModerate 2.0s infinite alternate ease-in-out;
+            width: 120px;
+            height: 120px;
+        }
+
+        .pulsing-minor {
+            background: radial-gradient(circle, rgba(255, 194, 0, 0.6) 0%, rgba(255, 194, 0, 0.15) 50%, rgba(255, 194, 0, 0) 70%);
+            animation: pulseMinor 2.5s infinite alternate ease-in-out;
+            width: 80px;
+            height: 80px;
+        }
+
+        @keyframes pulseCritical {
+            0% {
+                transform: scale(0.8);
+                opacity: 0.65;
+            }
+            100% {
+                transform: scale(1.25);
+                opacity: 0.95;
+            }
+        }
+
+        @keyframes pulseModerate {
+            0% {
+                transform: scale(0.85);
+                opacity: 0.55;
+            }
+            100% {
+                transform: scale(1.15);
+                opacity: 0.85;
+            }
+        }
+
+        @keyframes pulseMinor {
+            0% {
+                transform: scale(0.9);
+                opacity: 0.45;
+            }
+            100% {
+                transform: scale(1.1);
+                opacity: 0.75;
+            }
+        }
+
+        /* ─── CUSTOM SELECT DROPDOWN COMPONENT ─── */
+        .custom-select-wrapper {
+            position: relative;
+            width: 100%;
+            user-select: none;
+        }
+
+        .custom-select-trigger {
+            background: rgba(5, 7, 15, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: var(--text-primary);
+            padding: 0.75rem 1.1rem;
+            border-radius: 10px;
+            font-family: var(--font-sans);
+            font-size: 0.88rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: var(--transition-fast);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+        }
+
+        .custom-select-trigger:hover {
+            border-color: var(--accent-indigo);
+            background: rgba(5, 7, 15, 0.7);
+        }
+
+        .custom-select-wrapper.active .custom-select-trigger {
+            border-color: var(--accent-indigo);
+            box-shadow: 0 0 10px rgba(99, 102, 241, 0.2);
+            background: rgba(5, 7, 15, 0.75);
+        }
+
+        .custom-select-arrow {
+            transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            color: var(--text-secondary);
+        }
+
+        .custom-select-wrapper.active .custom-select-arrow {
+            transform: rotate(180deg);
+            color: var(--text-primary);
+        }
+
+        .custom-options-container {
+            position: absolute;
+            top: calc(100% + 0.4rem);
+            left: 0;
+            width: 100%;
+            background: rgba(9, 15, 31, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-6px);
+            transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s;
+            overflow: hidden;
+            padding: 0.35rem;
+        }
+
+        .custom-select-wrapper.active .custom-options-container {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .custom-option {
+            padding: 0.65rem 0.85rem;
+            font-size: 0.86rem;
+            color: var(--text-secondary);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: var(--transition-fast);
+        }
+
+        .custom-option:hover {
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text-primary);
+        }
+
+        .custom-option.selected {
+            background: rgba(99, 102, 241, 0.15);
+            color: var(--text-primary);
+            font-weight: 600;
+            border: 1px solid rgba(99, 102, 241, 0.25);
+        }
+
+        .custom-option.highlighted {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-primary);
+        }
+
+        .custom-select-trigger:focus-visible {
+            border-color: var(--accent-indigo);
+            box-shadow: 0 0 12px rgba(99, 102, 241, 0.35);
+            outline: none;
+        }
+
+        /* Scenario Presets */
+        .preset-badge-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.5rem;
+            margin-top: 0.35rem;
+        }
+
+        .preset-btn {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            padding: 0.5rem 0.65rem;
+            border-radius: 8px;
+            font-size: 0.72rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            text-align: left;
+            transition: var(--transition-smooth);
+            font-family: var(--font-sans);
+            display: flex;
+            flex-direction: column;
+            gap: 0.15rem;
+        }
+
+        .preset-btn:hover {
+            background: rgba(99, 102, 241, 0.08) !important;
+            border-color: rgba(99, 102, 241, 0.25) !important;
+            color: var(--text-primary) !important;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(99, 102, 241, 0.1);
+        }
+
+        .preset-btn:active {
+            transform: translateY(0);
+        }
+
+        /* Custom Leaflet Tooltip */
+        .custom-map-tooltip {
+            background: rgba(9, 15, 31, 0.9) !important;
+            border: 1px solid rgba(255, 255, 255, 0.12) !important;
+            color: var(--text-primary) !important;
+            font-family: var(--font-mono) !important;
+            font-size: 0.72rem !important;
+            font-weight: 700 !important;
+            border-radius: 6px !important;
+            padding: 0.35rem 0.65rem !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+        .custom-map-tooltip::before {
+            border-top-color: rgba(9, 15, 31, 0.9) !important;
+        }
+
+        /* Active Preset Button Glow */
+        .preset-btn.active-preset {
+            background: rgba(99, 102, 241, 0.16) !important;
+            border-color: rgba(99, 102, 241, 0.5) !important;
+            color: var(--text-primary) !important;
+            box-shadow: 0 0 12px rgba(99, 102, 241, 0.25) !important;
+        }
+
+        /* Collapsible Sidebar grid transitions */
+        .top-row-grid {
+            transition: grid-template-columns 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        }
+
+        .top-row-grid.config-collapsed {
+            grid-template-columns: 60px 1fr !important;
+        }
+
+        .top-row-grid.config-collapsed aside.glass-panel-sim {
+            align-items: center;
+        }
+
+        .top-row-grid.config-collapsed aside.glass-panel-sim .panel-header-sim {
+            padding: 1.1rem 0 !important;
+            border-bottom: none !important;
+            width: 100% !important;
+            display: flex !important;
+            justify-content: center !important;
+            align-items: center !important;
+        }
+
+        .top-row-grid.config-collapsed aside.glass-panel-sim .panel-title-sim,
+        .top-row-grid.config-collapsed aside.glass-panel-sim .panel-content-sim {
+            display: none !important;
+        }
+
+        /* Copy Button Styles */
+        .copy-btn {
+            opacity: 0.5;
+            transition: var(--transition-fast);
+        }
+
+        .copy-btn:hover {
+            opacity: 1;
+            color: var(--accent-indigo) !important;
+            transform: scale(1.1);
+        }
+
+        .copy-btn.copied {
+            color: var(--accent-emerald) !important;
+            opacity: 1;
+        }
+
+        /* Map Legend Overlay Styles */
+        .map-legend-card {
+            font-family: var(--font-sans);
+            transition: var(--transition-smooth);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Ambient Gradients in Background -->
+    <div class="bg-ambient-glows">
+        <div class="glow-1"></div>
+        <div class="glow-2"></div>
+        <div class="glow-3"></div>
+    </div>
+
+    <!-- Floating Navigation Pill (Same as Home Page) -->
+    <div class="nav-wrapper">
+        <nav class="floating-nav">
+            <a href="index.html" class="nav-logo" id="nav-logo-link">
+                <span>CITYSYNC <span style="font-weight: 300; opacity: 0.8;">COMMAND</span></span>
+            </a>
+            <div class="nav-links">
+                <a href="index.html#overview" class="nav-link">Overview</a>
+                <a href="index.html#intelligence" class="nav-link">Architecture</a>
+                <a href="index.html#capabilities" class="nav-link">Capabilities</a>
+            </div>
+            <a href="simulation.html" class="nav-btn active" id="nav-launch-btn">Dashboard</a>
+        </nav>
+    </div>
+
+    <!-- Main Simulator Grid Console -->
+    <div class="console-grid">
+        
+        <!-- Top Row Grid: Config on Left, Map on Right (Takes full height initially) -->
+        <div class="top-row-grid" style="display: grid; grid-template-columns: 320px 1fr; gap: 1.5rem; overflow: hidden; height: 100%;">
+            
+            <!-- Left Panel: Configuration Card -->
+            <aside class="glass-panel-sim">
+                <div class="panel-header-sim" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <h2 class="panel-title-sim">Configuration</h2>
+                    <button id="toggleConfigBtn" title="Collapse Panel" style="background: transparent; border: none; color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0.25rem; transition: var(--transition-smooth); outline: none;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="toggle-icon"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                    </button>
+                </div>
+                <div class="panel-content-sim">
+                    <div class="control-input-group">
+                        <label for="event_cause">Event Type</label>
+                        <select id="event_cause">
+                            <option value="accident">Major Accident</option>
+                            <option value="vehicle_breakdown" selected>Vehicle Breakdown</option>
+                            <option value="water_logging">Water Logging</option>
+                            <option value="tree_fall">Tree Fall</option>
+                            <option value="construction">Construction Zone</option>
+                        </select>
+                    </div>
+
+                    <div class="control-input-group">
+                        <label for="corridor">Corridor</label>
+                        <select id="corridor">
+                            <option value="Silk Board Junction" selected>Metro Core Spine</option>
+                            <option value="Outer Ring Road">Outer Ring Road (ORR)</option>
+                            <option value="Tumkur Road">Tumkur Road</option>
+                            <option value="Bannerghata Road">Bannerghata Road</option>
+                            <option value="Bellary Road 1">Bellary Road</option>
+                        </select>
+                    </div>
+
+                    <div class="control-input-group">
+                        <label>Time of Day</label>
+                        <div class="time-slider-container">
+                            <div class="time-slider-header">
+                                <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 500;">Selected Time</span>
+                                <span class="time-slider-val" id="timeVal">18:00</span>
+                            </div>
+                            <input type="range" class="time-slider" id="time_slider" min="0" max="1439" value="1080">
+                            <div class="time-slider-labels">
+                                <span>00:00</span>
+                                <span>12:00</span>
+                                <span>23:59</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Scenario Presets Grid -->
+                    <div class="control-input-group" style="margin-top: 0.25rem;">
+                        <label style="font-size: 0.68rem; color: var(--accent-indigo); font-weight: 700; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em;">Quick Presets</label>
+                        <div class="preset-badge-grid">
+                            <button type="button" class="preset-btn" onclick="applyPreset('water_logging', 'Outer Ring Road', 1110, this)">
+                                <span style="font-weight: 700; color: white; font-size: 0.75rem;">ORR Monsoon</span>
+                                <span>Flooding @ 18:30</span>
+                            </button>
+                            <button type="button" class="preset-btn" onclick="applyPreset('accident', 'Bellary Road 1', 510, this)">
+                                <span style="font-weight: 700; color: white; font-size: 0.75rem;">Hebbal Peak</span>
+                                <span>Accident @ 08:30</span>
+                            </button>
+                            <button type="button" class="preset-btn" onclick="applyPreset('vehicle_breakdown', 'Silk Board Junction', 1080, this)">
+                                <span style="font-weight: 700; color: white; font-size: 0.75rem;">Silk Board Eve</span>
+                                <span>Breakdown @ 18:00</span>
+                            </button>
+                            <button type="button" class="preset-btn" onclick="applyPreset('construction', 'Tumkur Road', 840, this)">
+                                <span style="font-weight: 700; color: white; font-size: 0.75rem;">Tumkur Work</span>
+                                <span>Construction @ 14:00</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <button class="btn-primary" id="generateBtn" style="margin-top: auto; padding: 1rem; border-radius: 12px; width: 100%; justify-content: center; font-weight: 700; font-size: 0.92rem; gap: 0.6rem; cursor: pointer;" onclick="runSimulation()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                        Generate Intelligence
+                    </button>
+                </div>
+            </aside>
+
+            <!-- Right Panel: Map Card -->
+            <div class="glass-panel-sim map-card-sim">
+                <div class="map-header-sim" style="z-index: 10;">
+                    <span class="panel-title-sim">Cascading Gridlock Map</span>
+                    <span class="map-badge-sim" id="liveMapOverlay"></span>
+                </div>
+                <div class="map-canvas-container-sim" style="position: relative; flex: 1;">
+                    <!-- Leaflet Map Container -->
+                    <div id="map"></div>
+                    <!-- Map Legend Overlay -->
+                    <div class="map-legend-card" style="position: absolute; bottom: 1.25rem; right: 1.25rem; z-index: 1000; background: rgba(9, 15, 31, 0.85); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 0.75rem 1rem; backdrop-filter: blur(16px); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); display: flex; flex-direction: column; gap: 0.5rem; pointer-events: auto; width: 170px;">
+                        <span style="font-family: var(--font-mono); font-size: 0.65rem; color: var(--accent-indigo); font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase;">Spillover Severity</span>
+                        <div style="display: flex; flex-direction: column; gap: 0.35rem;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-red); box-shadow: 0 0 6px var(--accent-red);"></span>
+                                <span style="font-size: 0.75rem; color: var(--text-primary); font-weight: 600;">Critical Impact</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-amber); box-shadow: 0 0 6px var(--accent-amber);"></span>
+                                <span style="font-size: 0.75rem; color: var(--text-primary); font-weight: 600;">Moderate Impact</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-amber); opacity: 0.6; box-shadow: 0 0 4px var(--accent-amber);"></span>
+                                <span style="font-size: 0.75rem; color: var(--text-secondary);">Minor Impact</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+
+        <!-- Bottom Row Panel: Redesigned Briefing Deck (Hidden initially, shown after click) -->
+        <div class="bottom-row-grid" id="bottom-row-container" style="display: none;">
+            
+            <!-- SECTION 1 — INCIDENT OVERVIEW -->
+            <section class="glass-panel-sim" id="sec1-incident-overview">
+                <div class="panel-header-sim">
+                    <h2 class="panel-title-sim">Incident Intelligence</h2>
+                </div>
+                <div class="panel-content-sim">
+                    <div class="briefing-tag-grid">
+                        <div class="briefing-tag-card">
+                            <span style="font-size: 0.65rem; text-transform: uppercase; color: var(--accent-indigo); font-family: var(--font-mono); font-weight: 700; letter-spacing: 0.08em;">Event Type</span>
+                            <span style="font-size: 1rem; font-weight: 800; color: white;" id="sec1-event-cause">-</span>
+                        </div>
+                        <div class="briefing-tag-card">
+                            <span style="font-size: 0.65rem; text-transform: uppercase; color: var(--accent-indigo); font-family: var(--font-mono); font-weight: 700; letter-spacing: 0.08em;">Corridor</span>
+                            <span style="font-size: 1rem; font-weight: 800; color: white;" id="sec1-corridor">-</span>
+                        </div>
+                        <div class="briefing-tag-card">
+                            <span style="font-size: 0.65rem; text-transform: uppercase; color: var(--accent-indigo); font-family: var(--font-mono); font-weight: 700; letter-spacing: 0.08em;">Incident Location</span>
+                            <span style="font-size: 1rem; font-weight: 800; color: white;" id="sec1-incident-location">-</span>
+                        </div>
+                        <div class="briefing-tag-card">
+                            <span style="font-size: 0.65rem; text-transform: uppercase; color: var(--accent-indigo); font-family: var(--font-mono); font-weight: 700; letter-spacing: 0.08em;">Priority</span>
+                            <span style="font-size: 1rem; font-weight: 800; color: white;" id="sec1-priority">-</span>
+                        </div>
+                        <div class="briefing-tag-card">
+                            <span style="font-size: 0.65rem; text-transform: uppercase; color: var(--accent-indigo); font-family: var(--font-mono); font-weight: 700; letter-spacing: 0.08em;">Road Closure</span>
+                            <span style="font-size: 1rem; font-weight: 800; color: white;" id="sec1-road-closure">-</span>
+                        </div>
+                        <div class="briefing-tag-card" style="grid-column: span 3;">
+                            <span style="font-size: 0.65rem; text-transform: uppercase; color: var(--accent-indigo); font-family: var(--font-mono); font-weight: 700; letter-spacing: 0.08em;">Timestamp</span>
+                            <span style="font-size: 1rem; font-weight: 800; color: white;" id="sec1-timestamp">-</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 2 — FORECAST ENGINE -->
+            <section class="glass-panel-sim" id="sec2-forecast-engine">
+                <div class="panel-header-sim">
+                    <h2 class="panel-title-sim">Forecast Engine</h2>
+                </div>
+                <div class="panel-content-sim">
+                    
+                    <!-- Predict Summary Metrics + Confidence Drivers Side by Side -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; width: 100%;">
+                        <!-- Left: Core Predict Stats -->
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
+                            <div class="briefing-tag-card">
+                                <span style="font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-family: var(--font-mono); font-weight: 700;">Expected Duration</span>
+                                <span style="font-size: 1.15rem; font-weight: 800; color: white;" id="sec2-clearance">-</span>
+                            </div>
+                            <div class="briefing-tag-card">
+                                <span style="font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-family: var(--font-mono); font-weight: 700;">Prediction Range</span>
+                                <span style="font-size: 1.15rem; font-weight: 800; color: white;" id="sec2-range">-</span>
+                            </div>
+                            <div class="briefing-tag-card">
+                                <span style="font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-family: var(--font-mono); font-weight: 700;">Severity Class</span>
+                                <span style="font-size: 1.15rem; font-weight: 800; color: white;" id="sec2-severity">-</span>
+                            </div>
+                            <div class="briefing-tag-card">
+                                <span style="font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-family: var(--font-mono); font-weight: 700;">Urgency Score</span>
+                                <span style="font-size: 1.15rem; font-weight: 800; color: white;" id="sec2-urgency">-</span>
+                            </div>
+                        </div>
+
+                        <!-- Right: Why Confidence / Confidence Drivers -->
+                        <div style="background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.05); padding: 1.25rem 1.5rem; border-radius: 14px; display: flex; flex-direction: column; gap: 0.75rem;">
+                            <span style="font-size: 0.68rem; text-transform: uppercase; color: var(--accent-indigo); font-family: var(--font-mono); font-weight: 800; letter-spacing: 0.08em;">Confidence Drivers</span>
+                            <ul style="margin: 0; padding-left: 1.1rem; color: var(--text-secondary); font-size: 0.85rem; display: flex; flex-direction: column; gap: 0.5rem; line-height: 1.45;" id="sec2-confidence-drivers">
+                                <li>Loading confidence analytics...</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
+            <!-- SECTION 3 — MODEL REASONING -->
+            <section class="glass-panel-sim" id="sec3-model-reasoning">
+                <div class="panel-header-sim">
+                    <h2 class="panel-title-sim">Decision Drivers</h2>
+                </div>
+                <div class="panel-content-sim" style="gap: 1.25rem;">
+                    <span style="font-size: 0.68rem; text-transform: uppercase; color: var(--accent-indigo); font-family: var(--font-mono); font-weight: 800; letter-spacing: 0.08em;">Primary Contributors influencing Forecast</span>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;" id="sec3-drivers-container">
+                        <!-- Driver Cards will be dynamically injected here -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 4 — CASCADE ENGINE (Core Differentiator, Visual Equal to Forecast) -->
+            <section class="glass-panel-sim" id="sec4-cascade-engine">
+                <div class="panel-header-sim">
+                    <h2 class="panel-title-sim">Cascade Intelligence</h2>
+                </div>
+                <div class="panel-content-sim">
+                    <div style="display: grid; grid-template-columns: 320px 1fr; gap: 2rem; width: 100%; align-items: center;">
+                        
+                        <!-- Left: Cascade Numeric Details -->
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <div class="briefing-tag-card">
+                                <span style="font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-family: var(--font-mono); font-weight: 700;">Primary Impact Corridor</span>
+                                <span style="font-size: 1.1rem; font-weight: 800; color: white;" id="sec4-primary-zone">-</span>
+                            </div>
+                            <div class="briefing-tag-card">
+                                <span style="font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-family: var(--font-mono); font-weight: 700;">Expected Congestion Spread Window</span>
+                                <span style="font-size: 1.1rem; font-weight: 800; color: white;" id="sec4-spread-window">-</span>
+                            </div>
+                            <div class="briefing-tag-card">
+                                <span style="font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-family: var(--font-mono); font-weight: 700;">Cascade Risk Score</span>
+                                <span style="font-size: 1.1rem; font-weight: 800; color: var(--accent-amber);" id="sec4-cascade-risk">-</span>
+                            </div>
+                            <div class="briefing-tag-card" style="gap: 0.45rem;">
+                                <span style="font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-family: var(--font-mono); font-weight: 700;">Most Vulnerable Adjacent Junctions</span>
+                                <div style="display: flex; flex-direction: column; gap: 0.25rem;" id="sec4-vulnerable-junctions">
+                                    <!-- Vulnerable junctions listed here -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right: Premium SVG Network Graph -->
+                        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                            <span style="font-size: 0.68rem; text-transform: uppercase; color: var(--accent-indigo); font-family: var(--font-mono); font-weight: 800; letter-spacing: 0.08em;">Live Congestion Propagation Model</span>
+                            <svg id="cascade-network-svg" width="100%" height="320" style="background: rgba(5,7,15,0.4); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; overflow: visible;">
+                                <!-- Dynamically generated SVG elements -->
+                            </svg>
+                        </div>
+
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 5 — RISK ASSESSMENT -->
+            <section class="glass-panel-sim" id="sec5-operational-risk-radar">
+                <div class="panel-header-sim">
+                    <h2 class="panel-title-sim">Operational Risk Radar</h2>
+                </div>
+                <div class="panel-content-sim" style="gap: 1.5rem;">
+                    
+                    <div class="risk-radar-grid">
+                        
+                        <!-- Ring 1 -->
+                        <div class="risk-radar-card">
+                            <div class="progress-ring-container">
+                                <svg width="70" height="70">
+                                    <circle class="progress-ring__circle" stroke="rgba(255,255,255,0.05)" stroke-width="6" fill="transparent" r="28" cx="35" cy="35"/>
+                                    <circle class="progress-ring__circle" id="sec5-circle-corridor" stroke="var(--accent-indigo)" stroke-width="6" fill="transparent" r="28" cx="35" cy="35" style="stroke-dasharray: 175.9; stroke-dashoffset: 175.9; filter: drop-shadow(0 0 4px var(--accent-indigo));"/>
+                                </svg>
+                                <span class="progress-ring-text" id="sec5-corridor-risk-val">0%</span>
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 0.25rem; flex: 1;">
+                                <span style="font-size: 0.75rem; font-weight: 700; color: white;">Corridor Risk</span>
+                                <p style="font-size: 0.72rem; color: var(--text-secondary); margin: 0; line-height: 1.3;" id="sec5-corridor-risk-desc">-</p>
+                            </div>
+                        </div>
+
+                        <!-- Ring 2 -->
+                        <div class="risk-radar-card">
+                            <div class="progress-ring-container">
+                                <svg width="70" height="70">
+                                    <circle class="progress-ring__circle" stroke="rgba(255,255,255,0.05)" stroke-width="6" fill="transparent" r="28" cx="35" cy="35"/>
+                                    <circle class="progress-ring__circle" id="sec5-circle-cascade" stroke="var(--accent-amber)" stroke-width="6" fill="transparent" r="28" cx="35" cy="35" style="stroke-dasharray: 175.9; stroke-dashoffset: 175.9; filter: drop-shadow(0 0 4px var(--accent-amber));"/>
+                                </svg>
+                                <span class="progress-ring-text" id="sec5-cascade-risk-val">0%</span>
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 0.25rem; flex: 1;">
+                                <span style="font-size: 0.75rem; font-weight: 700; color: white;">Cascade Risk</span>
+                                <p style="font-size: 0.72rem; color: var(--text-secondary); margin: 0; line-height: 1.3;" id="sec5-cascade-risk-desc">-</p>
+                            </div>
+                        </div>
+
+                        <!-- Ring 3 -->
+                        <div class="risk-radar-card">
+                            <div class="progress-ring-container">
+                                <svg width="70" height="70">
+                                    <circle class="progress-ring__circle" stroke="rgba(255,255,255,0.05)" stroke-width="6" fill="transparent" r="28" cx="35" cy="35"/>
+                                    <circle class="progress-ring__circle" id="sec5-circle-delay" stroke="var(--accent-red)" stroke-width="6" fill="transparent" r="28" cx="35" cy="35" style="stroke-dasharray: 175.9; stroke-dashoffset: 175.9; filter: drop-shadow(0 0 4px var(--accent-red));"/>
+                                </svg>
+                                <span class="progress-ring-text" id="sec5-delay-risk-val">0%</span>
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 0.25rem; flex: 1;">
+                                <span style="font-size: 0.75rem; font-weight: 700; color: white;">Delay Risk</span>
+                                <p style="font-size: 0.72rem; color: var(--text-secondary); margin: 0; line-height: 1.3;" id="sec5-delay-risk-desc">-</p>
+                            </div>
+                        </div>
+
+                        <!-- Ring 4 -->
+                        <div class="risk-radar-card">
+                            <div class="progress-ring-container">
+                                <svg width="70" height="70">
+                                    <circle class="progress-ring__circle" stroke="rgba(255,255,255,0.05)" stroke-width="6" fill="transparent" r="28" cx="35" cy="35"/>
+                                    <circle class="progress-ring__circle" id="sec5-circle-diversion" stroke="var(--accent-emerald)" stroke-width="6" fill="transparent" r="28" cx="35" cy="35" style="stroke-dasharray: 175.9; stroke-dashoffset: 175.9; filter: drop-shadow(0 0 4px var(--accent-emerald));"/>
+                                </svg>
+                                <span class="progress-ring-text" id="sec5-diversion-need-val">0%</span>
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 0.25rem; flex: 1;">
+                                <span style="font-size: 0.75rem; font-weight: 700; color: white;">Diversion Need</span>
+                                <p style="font-size: 0.72rem; color: var(--text-secondary); margin: 0; line-height: 1.3;" id="sec5-diversion-need-desc">-</p>
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+            </section>
+
+            <!-- SECTION 6 — MITIGATION PLAYBOOK -->
+            <section class="glass-panel-sim" id="sec6-response-playbook">
+                <div class="panel-header-sim">
+                    <h2 class="panel-title-sim">Response Playbook</h2>
+                </div>
+                <div class="panel-content-sim">
+                    <!-- Playbook 4-Column Grid -->
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.25rem; width: 100%;">
+                        
+                        <!-- Barricading -->
+                        <div class="playbook-action-card">
+                            <div class="action-card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                                <span class="action-card-type barricading">Barricading</span>
+                                <button class="copy-btn" onclick="copyCardText(this, 'sec6-barricading')" title="Copy to clipboard" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0.25rem; outline: none; margin-left: auto;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                                </button>
+                            </div>
+                            <p class="action-card-desc" id="sec6-barricading">-</p>
+                        </div>
+
+                        <!-- Manpower -->
+                        <div class="playbook-action-card">
+                            <div class="action-card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                                <span class="action-card-type manpower">Manpower</span>
+                                <button class="copy-btn" onclick="copyCardText(this, 'sec6-manpower')" title="Copy to clipboard" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0.25rem; outline: none; margin-left: auto;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                                </button>
+                            </div>
+                            <p class="action-card-desc" id="sec6-manpower">-</p>
+                        </div>
+
+                        <!-- Diversion -->
+                        <div class="playbook-action-card">
+                            <div class="action-card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                                <span class="action-card-type diversion">Diversion</span>
+                                <button class="copy-btn" onclick="copyCardText(this, 'sec6-diversion')" title="Copy to clipboard" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0.25rem; outline: none; margin-left: auto;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                                </button>
+                            </div>
+                            <p class="action-card-desc" id="sec6-diversion">-</p>
+                        </div>
+
+                        <!-- Escalation -->
+                        <div class="playbook-action-card" style="border-color: rgba(239, 68, 68, 0.15); background: rgba(239, 68, 68, 0.01);">
+                            <div class="action-card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                                <span class="action-card-type timeline" style="background: rgba(239,68,68,0.1); color: var(--accent-red); border-color: rgba(239,68,68,0.18);">Escalation</span>
+                                <button class="copy-btn" onclick="copyCardText(this, 'sec6-escalation')" title="Copy to clipboard" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0.25rem; outline: none; margin-left: auto;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                                </button>
+                            </div>
+                            <p class="action-card-desc" id="sec6-escalation">-</p>
+                        </div>
+
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 7 — WHY THIS PLAYBOOK -->
+            <section class="glass-panel-sim" id="sec7-recommendation-evidence">
+                <div class="panel-header-sim">
+                    <h2 class="panel-title-sim">Recommendation Evidence</h2>
+                </div>
+                <div class="panel-content-sim">
+                    <div class="briefing-tag-grid" style="grid-template-columns: repeat(4, 1fr);">
+                        <div class="briefing-tag-card">
+                            <span style="font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-family: var(--font-mono); font-weight: 700;">Similar Records</span>
+                            <span style="font-size: 1.15rem; font-weight: 800; color: white;" id="sec7-historical-count">-</span>
+                        </div>
+                        <div class="briefing-tag-card">
+                            <span style="font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-family: var(--font-mono); font-weight: 700;">Predicted Duration</span>
+                            <span style="font-size: 1.15rem; font-weight: 800; color: white;" id="sec7-predicted-duration">-</span>
+                        </div>
+                        <div class="briefing-tag-card">
+                            <span style="font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-family: var(--font-mono); font-weight: 700;">Risk Profile</span>
+                            <span style="font-size: 1.15rem; font-weight: 800; color: var(--accent-amber);" id="sec7-risk-profile">-</span>
+                        </div>
+                        <div class="briefing-tag-card">
+                            <span style="font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-family: var(--font-mono); font-weight: 700;">Affected Junctions</span>
+                            <span style="font-size: 1.15rem; font-weight: 800; color: white;" id="sec7-affected-junctions">-</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 8 — FUTURE READINESS -->
+            <section class="glass-panel-sim" id="sec8-future-readiness" style="border-color: rgba(99, 102, 241, 0.2); background: rgba(99, 102, 241, 0.01);">
+                <div class="panel-header-sim" style="border-bottom-color: rgba(99, 102, 241, 0.1);">
+                    <h2 class="panel-title-sim" style="color: #a5b4fc;">Continuous Learning (Future Readiness Briefing)</h2>
+                </div>
+                <div class="panel-content-sim" style="gap: 1.5rem;">
+                    
+                    <!-- Strategic Insight Brief -->
+                    <div style="background: rgba(99,102,241,0.05); border: 1px solid rgba(99,102,241,0.15); padding: 1.5rem; border-radius: 16px; display: flex; flex-direction: column; gap: 0.5rem;">
+                        <span style="font-size: 0.68rem; text-transform: uppercase; color: #a5b4fc; font-family: var(--font-mono); font-weight: 800; letter-spacing: 0.08em;">Strategic Executive Insight</span>
+                        <p style="font-size: 0.95rem; font-weight: 600; color: white; margin: 0; line-height: 1.55;" id="sec8-strategic-insight">Loading executive insight...</p>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; width: 100%;">
+                        <!-- Left Column: Recommendations & Resilience -->
+                        <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+                            <!-- Preparedness -->
+                            <div style="display: flex; flex-direction: column; gap: 0.45rem;">
+                                <span style="font-size: 0.68rem; text-transform: uppercase; color: var(--accent-emerald); font-family: var(--font-mono); font-weight: 800; letter-spacing: 0.08em;">Preparedness Recommendations</span>
+                                <ul style="margin: 0; padding-left: 1.1rem; color: var(--text-secondary); font-size: 0.86rem; display: flex; flex-direction: column; gap: 0.4rem; line-height: 1.45;" id="sec8-preparedness-recommendations">
+                                    <li>Loading recommendations...</li>
+                                </ul>
+                            </div>
+                            
+                            <!-- Resilience -->
+                            <div style="display: flex; flex-direction: column; gap: 0.45rem; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 1rem;">
+                                <span style="font-size: 0.68rem; text-transform: uppercase; color: #a5b4fc; font-family: var(--font-mono); font-weight: 800; letter-spacing: 0.08em;">Resilience Opportunities</span>
+                                <ul style="margin: 0; padding-left: 1.1rem; color: var(--text-secondary); font-size: 0.86rem; display: flex; flex-direction: column; gap: 0.4rem; line-height: 1.45;" id="sec8-resilience-opportunities">
+                                    <li>Loading resilience plans...</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- Right Column: Historical Intelligence / Context -->
+                        <div style="background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.05); padding: 1.25rem 1.5rem; border-radius: 14px; display: flex; flex-direction: column; gap: 0.6rem;">
+                            <span style="font-size: 0.68rem; text-transform: uppercase; color: var(--text-muted); font-family: var(--font-mono); font-weight: 800; letter-spacing: 0.08em;">Historical Intelligence Context</span>
+                            <p style="font-size: 0.88rem; color: var(--text-secondary); margin: 0; line-height: 1.55;" id="sec8-historical-context">Loading historical context...</p>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
+        </div>
+
+    </div>
+
+    <!-- Full screen loading overlay for execution animations -->
+    <div class="sim-loading-overlay" id="loadingOverlay">
+        <div class="sim-spinner"></div>
+        <div class="sim-loading-text" id="loadingText">Ingesting Sensor Telemetry...</div>
+    </div>
+
+    <!-- Operations Dashboard Logic script -->
+    <script src="simulation.js"></script>
+    
+    <script>
+		
+        // Set up time slider value text updates
+        const timeSlider = document.getElementById('time_slider');
+        const timeVal = document.getElementById('timeVal');
+        
+        timeSlider.addEventListener('input', (e) => {
+            const minutesTotal = e.target.value;
+            const hours = Math.floor(minutesTotal / 60).toString().padStart(2, '0');
+            const minutes = (minutesTotal % 60).toString().padStart(2, '0');
+            timeVal.innerText = `${hours}:${minutes}`;
+        });
+
+        // Quick Preset handler
+        let isPresetApplying = false;
+        window.applyPreset = function(eventCause, corridor, timeValMinutes, btnElement) {
+            isPresetApplying = true;
+            
+            // Highlight active preset button
+            document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active-preset'));
+            if (btnElement) {
+                btnElement.classList.add('active-preset');
+            }
+            
+            const eventCauseSelect = document.getElementById('event_cause');
+            const corridorSelect = document.getElementById('corridor');
+            const timeSliderInput = document.getElementById('time_slider');
+            
+            if (eventCauseSelect) {
+                eventCauseSelect.value = eventCause;
+                eventCauseSelect.dispatchEvent(new Event('change'));
+            }
+            if (corridorSelect) {
+                corridorSelect.value = corridor;
+                corridorSelect.dispatchEvent(new Event('change'));
+            }
+            if (timeSliderInput) {
+                timeSliderInput.value = timeValMinutes;
+                const hours = Math.floor(timeValMinutes / 60).toString().padStart(2, '0');
+                const minutes = (timeValMinutes % 60).toString().padStart(2, '0');
+                document.getElementById('timeVal').innerText = `${hours}:${minutes}`;
+                timeSliderInput.dispatchEvent(new Event('input'));
+            }
+            
+            setTimeout(() => {
+                isPresetApplying = false;
+            }, 250);
+            
+            // Auto trigger simulation after dropdown changes transition
+            setTimeout(() => {
+                window.runSimulation();
+            }, 150);
+        };
+
+        // Reset preset highlights on manual modifications
+        function handleManualChange() {
+            if (!isPresetApplying) {
+                document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active-preset'));
+            }
+        }
+        document.getElementById('event_cause').addEventListener('change', handleManualChange);
+        document.getElementById('corridor').addEventListener('change', handleManualChange);
+        document.getElementById('time_slider').addEventListener('input', handleManualChange);
+    </script>
+</body>
+</html>
